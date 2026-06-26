@@ -1,0 +1,23 @@
+[package]
+name = "astrium"
+version = "0.1.0"
+edition = "2021"
+description = "Wallpaper-driven Material You theming for Linux — palettes for kitty, Hyprland, Neovim."
+license = "MIT"
+repository = "https://github.com/Rise-zen/astrium"
+authors = ["Rise-zen"]
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+opt-level = 3
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+image = "0.25"
+material-colors = { version = "0.4", features = ["image"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
