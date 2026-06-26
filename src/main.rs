@@ -48,7 +48,7 @@ fn main() -> Result<()> {
             let path = resolve_path(&image_path, &home);
             match astrium::apply(&path, &cfg, &cache_dir) {
                 Ok(_) => println!("ok"),
-                Err(e) => eprintln!("[refract] error: {e:?}"),
+                Err(e) => eprintln!("[astrium] error: {e:?}"),
             }
         }
         Cmd::Watch { interval } => watch(&cfg, &cache_dir, interval)?,
@@ -76,7 +76,7 @@ fn watch(cfg: &astrium::config::Config, cache_dir: &PathBuf, interval_ms: u64) -
         if let Some(p) = astrium::current_wallpaper() {
             if last.as_ref() != Some(&p) && p.exists() {
                 if let Err(e) = astrium::apply(&p, cfg, cache_dir) {
-                    eprintln!("[refract] watch: {e:?}");
+                    eprintln!("[astrium] watch: {e:?}");
                 }
                 last = Some(p);
             }

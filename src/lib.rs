@@ -1,4 +1,4 @@
-//! refract — extract a Material You palette from a wallpaper and broadcast
+//! astrium — extract a Material You palette from a wallpaper and broadcast
 //! it to the rest of the desktop (kitty, Hyprland, neovim, cava, quickshell).
 //!
 //! The CLI in `main.rs` is thin: this library does all the work so other
@@ -22,7 +22,7 @@ use std::process::Command;
 /// hyprland conf, nvim lua, etc.) are written. The quickshell output also
 /// writes `/tmp/qs_colors.json` so the bar picks it up via its polling.
 pub fn apply(image_path: &Path, cfg: &config::Config, cache_dir: &Path) -> Result<()> {
-    // Drive the wallpaper too — refract is the single entrypoint for "swap
+    // Drive the wallpaper too — astrium is the single entrypoint for "swap
     // wallpaper + retheme everything", so callers don't have to remember to
     // call awww separately.
     let _ = Command::new("awww")
