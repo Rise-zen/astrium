@@ -33,7 +33,7 @@ picker GUI, or a script) and runs the whole pipeline within ~200 ms.
 |---|---|
 | `~/.cache/astrium/colors.json` | wal-style palette (background, foreground, color0..15) |
 | `~/.cache/astrium/colors-kitty.conf` | kitty terminal — auto-applied via `kitty @ set-colors --all` |
-| `~/.cache/astrium/colors-hyprland.lua` | Hyprland border/shadow colours as a native-Lua snippet — also pushed live via `hyprctl keyword` |
+| `~/.cache/astrium/colors-hyprland.conf` | Hyprland border/shadow colours — auto-applied via `hyprctl keyword` |
 | `~/.cache/astrium/nvim-theme.lua` | Neovim highlight overrides |
 | `/tmp/qs_colors.json` | Catppuccin-named palette ([quickshell](https://quickshell.outfoxxed.me/) configs poll this) |
 
@@ -202,19 +202,15 @@ the reload out to all of them on wallpaper change.
 
 ## Hyprland hookup
 
-astrium writes `~/.cache/astrium/colors-hyprland.lua` — a snippet that calls
-`hl.config{}` with the active border colours and shadow colour pulled from the
-wallpaper. On a **native Lua** Hyprland config (0.50+), load it at the very end
-of `hyprland.lua` so it overrides your defaults:
+Add this to the end of your `hyprland.conf`:
 
-```lua
--- last line of ~/.config/hypr/hyprland.lua
-pcall(dofile, os.getenv("HOME") .. "/.cache/astrium/colors-hyprland.lua")
+```conf
+source = ~/.cache/astrium/colors-hyprland.conf
 ```
 
-The startup file is only for *cold start* — while running, astrium
-applies each change instantly with `hyprctl keyword general:col.active_border …`,
-so borders retint the moment the wallpaper changes, no reload needed.
+This loads the palette on startup. While running, astrium also applies each
+change instantly with `hyprctl keyword`, so borders retint the moment the
+wallpaper changes — no reload needed.
 
 ---
 
@@ -271,11 +267,8 @@ astrium = { git = "https://github.com/Rise-zen/astrium" }
 
 ## Changelog
 
-- **Hyprland output is now native Lua.** astrium emits
-  `~/.cache/astrium/colors-hyprland.lua` (an `hl.config{}` snippet) instead of
-  the old `colors-hyprland.conf`, to match Hyprland 0.50+'s native Lua config
-  loader. Load it with `dofile` (see [Hyprland hookup](#hyprland-hookup)). Live
-  reload via `hyprctl keyword` is unchanged.
+- Full install guide with step-by-step instructions and dependency table.
+- Added Hyprland hookup section.
 - Repository URLs moved to `github.com/Rise-zen/astrium`.
 
 ---

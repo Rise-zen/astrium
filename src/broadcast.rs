@@ -276,12 +276,17 @@ fn write_and_apply_hyprland(colors: &Colors, cache_dir: &Path) -> Result<()> {
     let inactive_hex = inactive.trim_start_matches('#');
     let bg_hex = colors.background.trim_start_matches('#');
 
-    let hypr_path = cache_dir.join("colors-hyprland.lua");
+    let hypr_path = cache_dir.join("colors-hyprland.conf");
     let mut f = File::create(&hypr_path)?;
-    writeln!(f, "hl.config({{")?;
-    writeln!(f, "    general = {{ col = {{ active_border = \"rgba({active_hex}ee)\", inactive_border = \"rgba({inactive_hex}aa)\" }} }},")?;
-    writeln!(f, "    decoration = {{ shadow = {{ color = 0xee{bg_hex} }} }},")?;
-    writeln!(f, "}})")?;
+    writeln!(f, "general {{")?;
+    writeln!(f, "    col.active_border = rgba({active_hex}ee)")?;
+    writeln!(f, "    col.inactive_border = rgba({inactive_hex}aa)")?;
+    writeln!(f, "}}")?;
+    writeln!(f, "decoration {{")?;
+    writeln!(f, "    shadow {{")?;
+    writeln!(f, "        color = rgba({bg_hex}ee)")?;
+    writeln!(f, "    }}")?;
+    writeln!(f, "}}")?;
 
     let commands = [
         ("general:col.active_border", format!("rgba({active_hex}ee)")),
