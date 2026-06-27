@@ -33,7 +33,7 @@ picker GUI, or a script) and runs the whole pipeline within ~200 ms.
 |---|---|
 | `~/.cache/astrium/colors.json` | wal-style palette (background, foreground, color0..15) |
 | `~/.cache/astrium/colors-kitty.conf` | kitty terminal — auto-applied via `kitty @ set-colors --all` |
-| `~/.cache/astrium/colors-hyprland.conf` | Hyprland border colours — auto-applied via `hyprctl keyword` |
+| `~/.cache/astrium/colors-hyprland.lua` | Hyprland border/shadow colours as a native-Lua snippet — also pushed live via `hyprctl keyword` |
 | `~/.cache/astrium/nvim-theme.lua` | Neovim highlight overrides |
 | `/tmp/qs_colors.json` | Catppuccin-named palette ([quickshell](https://quickshell.outfoxxed.me/) configs poll this) |
 
@@ -53,11 +53,11 @@ Plus side effects:
 
 ```sh
 # try it without committing
-nix run github:zerkal-beta/astrium -- apply ~/Wallpaper/sunset.jpg
-nix run github:zerkal-beta/astrium#watch
+nix run github:Rise-zen/astrium -- apply ~/Wallpaper/sunset.jpg
+nix run github:Rise-zen/astrium#watch
 
 # permanent
-nix profile install github:zerkal-beta/astrium
+nix profile install github:Rise-zen/astrium
 ```
 
 home-manager / NixOS module:
@@ -77,23 +77,69 @@ home-manager / NixOS module:
 The module wires `astrium watch` into `graphical-session.target`, so it
 starts when your compositor is up and restarts automatically on failure.
 
-### Arch / manual
+### Arch / manual (full guide)
+
+**1. Toolchain.** astrium is built with stable Rust (edition 2021):
 
 ```sh
-git clone https://github.com/zerkal-beta/astrium
-cd astrium
-cargo build --release
-install -m755 target/release/astrium ~/.local/bin/
+sudo pacman -S --needed rust git imagemagick
+# or, if you manage Rust via rustup:
+rustup default stable
 ```
 
-Runtime dependencies (most are optional, only needed for the matching
-output):
+`imagemagick` provides the `magick` binary used for cover/accent quantization
+and is the one hard runtime dependency.
 
-- [`awww`](https://github.com/LGFae/awww) — wallpaper backend
-- `kitty` — for live colour-reload of the terminal
-- `hyprctl` — for live Hyprland border-reload
-- `neovim` — for live theme push (via `nvim --remote-expr`)
-- `cava` — for the spectrum gradient
+**2. Build and install the binary:**
+
+```sh
+git clone https://github.com/Rise-zen/astrium
+cd astrium
+cargo build --release
+install -Dm755 target/release/astrium ~/.local/bin/astrium
+```
+
+**3. Put `~/.local/bin` on your `PATH`** if it isn't already:
+
+```sh
+# fish
+fish_add_path ~/.local/bin
+# bash/zsh
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.profile
+```
+
+Verify: `astrium --help` should print the CLI.
+
+**4. Optional runtime deps** — each is only needed for its matching output;
+astrium silently skips any that are missing:
+
+| Dependency | Enables |
+|---|---|
+| [`awww`](https://github.com/LGFae/awww) | wallpaper backend (`astrium apply` sets it, `watch` polls it) |
+| `kitty` | live terminal colour-reload via `kitty @ set-colors` |
+| `hyprctl` (Hyprland) | live border/shadow reload |
+| `neovim` | live theme push via `nvim --remote-expr` |
+| `cava` | spectrum gradient (config patched in place) |
+
+**5. First run** — apply any wallpaper to generate every palette file:
+
+```sh
+astrium apply ~/Wallpaper/sunset.jpg
+```
+
+**6. Run the watcher** so retheming happens automatically on every wallpaper
+change. Add to your compositor autostart, e.g. Hyprland:
+
+```lua
+-- in your hyprland.lua autostart hook
+hl.exec_cmd("astrium watch --interval 200")
+```
+
+or the legacy `.conf`:
+
+```conf
+exec-once = astrium watch --interval 200
+```
 
 ---
 
@@ -154,6 +200,24 @@ the reload out to all of them on wallpaper change.
 
 ---
 
+## Hyprland hookup
+
+astrium writes `~/.cache/astrium/colors-hyprland.lua` — a snippet that calls
+`hl.config{}` with the active border colours and shadow colour pulled from the
+wallpaper. On a **native Lua** Hyprland config (0.50+), load it at the very end
+of `hyprland.lua` so it overrides your defaults:
+
+```lua
+-- last line of ~/.config/hypr/hyprland.lua
+pcall(dofile, os.getenv("HOME") .. "/.cache/astrium/colors-hyprland.lua")
+```
+
+The startup file is only for *cold start* — while running, astrium
+applies each change instantly with `hyprctl keyword general:col.active_border …`,
+so borders retint the moment the wallpaper changes, no reload needed.
+
+---
+
 ## CLI
 
 ```text
@@ -188,7 +252,7 @@ subprocess.
 ```toml
 # Cargo.toml
 [dependencies]
-astrium = { git = "https://github.com/zerkal-beta/astrium" }
+astrium = { git = "https://github.com/Rise-zen/astrium" }
 ```
 
 ---
@@ -202,6 +266,17 @@ astrium = { git = "https://github.com/zerkal-beta/astrium" }
 - **[lyrics](https://github.com/Rise-zen/lyrics)** — terminal lyrics display
   that loads `~/.cache/astrium/colors.json` so the current-line colour
   follows your wallpaper too.
+
+---
+
+## Changelog
+
+- **Hyprland output is now native Lua.** astrium emits
+  `~/.cache/astrium/colors-hyprland.lua` (an `hl.config{}` snippet) instead of
+  the old `colors-hyprland.conf`, to match Hyprland 0.50+'s native Lua config
+  loader. Load it with `dofile` (see [Hyprland hookup](#hyprland-hookup)). Live
+  reload via `hyprctl keyword` is unchanged.
+- Repository URLs moved to `github.com/Rise-zen/astrium`.
 
 ---
 
