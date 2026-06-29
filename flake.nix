@@ -85,7 +85,7 @@
 
           meta = with pkgs.lib; {
             description = "Wallpaper-driven Material You theming for kitty, Hyprland, Neovim";
-            homepage    = "https://github.com/zerkal-beta/astrium";
+            homepage    = "https://github.com/Rise-zen/astrium";
             license     = licenses.mit;
             platforms   = platforms.linux;
             mainProgram = "astrium";
@@ -95,8 +95,8 @@
         packages.default = astrium;
         packages.astrium = astrium;
 
-        # `nix run github:zerkal-beta/astrium -- apply ~/Wallpaper/sunset.jpg`
-        # `nix run github:zerkal-beta/astrium#watch`
+        # `nix run github:Rise-zen/astrium -- apply ~/Wallpaper/sunset.jpg`
+        # `nix run github:Rise-zen/astrium#watch`
         apps.default = {
           type    = "app";
           program = "${astrium}/bin/astrium";
