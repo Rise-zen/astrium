@@ -22,12 +22,27 @@ use std::process::Command;
 /// hyprland conf, nvim lua, etc.) are written. The quickshell output also
 /// writes `/tmp/qs_colors.json` so the bar picks it up via its polling.
 pub fn apply(image_path: &Path, cfg: &config::Config, cache_dir: &Path) -> Result<()> {
+    apply_with(image_path, cfg, cache_dir, true)
+}
+
+/// Same as `apply`, but `set_wallpaper` controls whether astrium drives awww.
+/// Pass `false` when the caller already set the wallpaper (e.g. the quickshell
+/// picker runs its own `awww img` with transitions) and only wants the palette
+/// regenerated immediately — no second awww call, no double transition.
+pub fn apply_with(
+    image_path: &Path,
+    cfg: &config::Config,
+    cache_dir: &Path,
+    set_wallpaper: bool,
+) -> Result<()> {
     // Drive the wallpaper too — astrium is the single entrypoint for "swap
     // wallpaper + retheme everything", so callers don't have to remember to
     // call awww separately.
-    let _ = Command::new("awww")
-        .args(["img", &image_path.to_string_lossy()])
-        .status();
+    if set_wallpaper {
+        let _ = Command::new("awww")
+            .args(["img", &image_path.to_string_lossy()])
+            .status();
+    }
 
     let source = color::extract_source_color(image_path)?;
     let colors = theme::build_colors(source, cfg);

@@ -21,6 +21,10 @@ enum Cmd {
     Apply {
         #[arg(value_name = "IMAGE_PATH")]
         image_path: PathBuf,
+        /// Only regenerate the palette; don't set the wallpaper via awww.
+        /// Use when the caller already displayed the image itself.
+        #[arg(long)]
+        no_wallpaper: bool,
     },
     /// Poll awww for wallpaper changes and re-theme automatically.
     /// Replaces the standalone bash wallpaper-watch script with a single
@@ -41,12 +45,13 @@ fn main() -> Result<()> {
     // Resolve the legacy "just give me a path" form.
     let cmd = cli.command.unwrap_or_else(|| Cmd::Apply {
         image_path: cli.image_path.unwrap_or_else(|| PathBuf::from(".")),
+        no_wallpaper: false,
     });
 
     match cmd {
-        Cmd::Apply { image_path } => {
+        Cmd::Apply { image_path, no_wallpaper } => {
             let path = resolve_path(&image_path, &home);
-            match astrium::apply(&path, &cfg, &cache_dir) {
+            match astrium::apply_with(&path, &cfg, &cache_dir, !no_wallpaper) {
                 Ok(_) => println!("ok"),
                 Err(e) => eprintln!("[astrium] error: {e:?}"),
             }
