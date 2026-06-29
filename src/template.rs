@@ -1,11 +1,4 @@
-//! User-defined template rendering.
-//!
-//! astrium ships built-in outputs (kitty, hyprland, nvim, cava, quickshell),
-//! but those only cover the author's own setup. The template engine lets any
-//! user theme any app: point astrium at an input file containing placeholders
-//! like `{{base}}` or `{{color5}}` and an output path, and it renders the file
-//! on every wallpaper change. Same idea as pywal/matugen templates, minimal
-//! syntax, no dependencies.
+//! User-defined `{{var}}` template rendering, so any app can be themed.
 
 use crate::theme::Colors;
 use anyhow::{Context, Result};
@@ -54,28 +47,38 @@ pub fn render(input: &Path, output: &Path, vars: &HashMap<String, String>) -> Re
     Ok(())
 }
 
-/// Single-pass `{{key}}` substitution. Whitespace inside the braces is trimmed,
-/// so `{{ base }}` and `{{base}}` are equivalent.
+/// Single-pass `{{key}}` substitution. Inner whitespace is trimmed
+/// (`{{ base }}` == `{{base}}`); unknown keys are copied through verbatim.
+/// Slice-based so multi-byte UTF-8 in templates is preserved.
 fn substitute(src: &str, vars: &HashMap<String, String>) -> String {
     let mut out = String::with_capacity(src.len());
-    let bytes = src.as_bytes();
-    let mut i = 0;
+    let mut rest = src;
 
-    while i < bytes.len() {
-        if i + 1 < bytes.len() && bytes[i] == b'{' && bytes[i + 1] == b'{' {
-            if let Some(end) = src[i + 2..].find("}}") {
-                let key = src[i + 2..i + 2 + end].trim();
-                if let Some(val) = vars.get(key) {
-                    out.push_str(val);
-                    i = i + 2 + end + 2;
-                    continue;
+    while let Some(start) = rest.find("{{") {
+        out.push_str(&rest[..start]);
+        let after = &rest[start + 2..];
+
+        match after.find("}}") {
+            Some(end) => {
+                let key = after[..end].trim();
+                match vars.get(key) {
+                    Some(val) => out.push_str(val),
+                    None => {
+                        out.push_str("{{");
+                        out.push_str(&after[..end]);
+                        out.push_str("}}");
+                    }
                 }
+                rest = &after[end + 2..];
+            }
+            None => {
+                out.push_str("{{");
+                rest = after;
             }
         }
-        out.push(bytes[i] as char);
-        i += 1;
     }
 
+    out.push_str(rest);
     out
 }
 
@@ -111,5 +114,15 @@ mod tests {
     #[test]
     fn leaves_unknown_keys_intact() {
         assert_eq!(substitute("{{nope}}", &vars()), "{{nope}}");
+    }
+
+    #[test]
+    fn preserves_multibyte_utf8() {
+        assert_eq!(substitute("─ цвет {{base}} ─", &vars()), "─ цвет #1e1e2e ─");
+    }
+
+    #[test]
+    fn handles_unterminated_braces() {
+        assert_eq!(substitute("{{base", &vars()), "{{base");
     }
 }

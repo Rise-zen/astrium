@@ -3,15 +3,14 @@ use material_colors::color::Argb;
 use material_colors::image::{FilterType, ImageReader};
 use std::path::Path;
 
-/// Picks the dominant *vibrant* color via Material You's own pipeline:
-/// Celebi quantization to 128 buckets, then Score ranking (which favors
-/// chromatic, well-represented colors over muddy greys). This is what makes
-/// the palette pop — naive pixel-averaging just blends everything to grey.
+/// Dominant vibrant color via Material You (Celebi quantization + Score
+/// ranking), which favors chromatic colors over muddy greys.
 pub fn extract_source_color(img_path: &Path) -> Result<Argb> {
     let mut image = ImageReader::open(img_path)?;
-    // Downscale first: quantization over a 128x128 thumbnail is plenty
-    // accurate and keeps extraction near-instant on 4K wallpapers.
-    image.resize(128, 128, FilterType::Lanczos3);
+    // Quantize over a 128px thumbnail — accurate enough for one accent and
+    // near-instant on 4K. Triangle resampling: filter quality is irrelevant
+    // when we only need the dominant color, and it's faster than Lanczos.
+    image.resize(128, 128, FilterType::Triangle);
     Ok(ImageReader::extract_color(&image))
 }
 

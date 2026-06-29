@@ -62,10 +62,8 @@ pub fn save_and_broadcast(
     Ok(())
 }
 
-/// Write every palette artifact into `dir` as plain files, with no live-reload
-/// side effects (no awww/kitty/hyprctl/nvim/pkill, no /tmp, no patching the
-/// user's cava config). This is what the Nix build-time `astrium generate`
-/// path uses to bake a palette into a derivation without a running daemon.
+/// Write every palette artifact into `dir` with no side effects (no commands,
+/// no /tmp, no config patching). Backs the build-time `astrium generate` path.
 pub fn write_static(colors: &Colors, dir: &Path) -> Result<()> {
     fs::create_dir_all(dir)?;
     fs::write(dir.join("colors.json"), colors_json_string(colors)?)?;
@@ -136,9 +134,7 @@ fn quickshell_json_string(colors: &Colors) -> Result<String> {
     m.insert("overlay0", mix(bg, fg, 0.40));
     m.insert("overlay1", mix(bg, fg, 0.55));
     m.insert("overlay2", mix(bg, fg, 0.70));
-    // Accents: the muted ansi palette is too washed-out for a status bar, so
-    // we re-saturate and normalize lightness so colors read clearly against the
-    // dark base. Terminal/nvim keep the muted look; only the bar gets the punch.
+    // Re-saturate accents: the muted ansi palette is too washed-out for a bar.
     m.insert("red", hex(vivid(g(1))));
     m.insert("green", hex(vivid(g(2))));
     m.insert("yellow", hex(vivid(g(3))));
@@ -153,8 +149,7 @@ fn quickshell_json_string(colors: &Colors) -> Result<String> {
     Ok(serde_json::to_string_pretty(&m)?)
 }
 
-/// Pushes a washed-out accent toward a punchy, bar-friendly color: floor the
-/// saturation so greys gain hue, and pin lightness into a readable mid-range.
+/// Floor saturation and pin lightness to a readable mid-range for a bar accent.
 fn vivid(c: (u8, u8, u8)) -> (u8, u8, u8) {
     let (h, s, l) = rgb_to_hsl(c);
     let s = s.max(0.55);
@@ -213,10 +208,8 @@ fn hex(c: (u8, u8, u8)) -> String {
     format!("#{:02x}{:02x}{:02x}", c.0, c.1, c.2)
 }
 
-/// Patches the user's ~/.config/cava/config in-place: replaces the block
-/// between `# >>> astrium` / `# <<< astrium` markers (creating it on first
-/// run) with a freshly computed gradient. Six stops from the ansi palette
-/// gives a smooth rainbow that follows the wallpaper.
+/// Replace the astrium-marked block in ~/.config/cava/config with a fresh
+/// gradient (created on first run).
 fn update_cava_config(colors: &Colors) -> Result<()> {
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
     let cfg_path = std::path::PathBuf::from(format!("{home}/.config/cava/config"));
@@ -231,10 +224,8 @@ fn update_cava_config(colors: &Colors) -> Result<()> {
     Ok(())
 }
 
-/// The cava `[color]` gradient block, framed by the `# >>> astrium` /
-/// `# <<< astrium` markers. All vibrant ANSI slots (1..7, 9..15) become
-/// gradient stops; color0/8 (background and grey) are skipped so the gradient
-/// stays saturated.
+/// The marker-framed cava `[color]` gradient. Vibrant slots (1..7, 9..15)
+/// become stops; color0/8 are skipped to keep it saturated.
 fn cava_block_string(colors: &Colors) -> String {
     let mut stops: Vec<&str> = Vec::new();
     for i in [1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15] {
@@ -275,15 +266,13 @@ fn replace_block(existing: &str, block: &str) -> String {
     out
 }
 
-/// Cava reloads its config on SIGUSR1 (since 0.7.4). We pgrep + signal all
-/// running instances so colors update live without the user restarting it.
+/// cava reloads its config on SIGUSR1 (>= 0.7.4).
 fn reload_running_cava() {
     let _ = Command::new("pkill").args(["-USR1", "-x", "cava"]).status();
 }
 
-/// Pushes an instant reload to every running nvim instance that registered
-/// a socket under `cache_dir/nvim-sockets` (see init.lua). Stale sockets
-/// (nvim exited without cleaning up) are removed on failed connection.
+/// Live-reload every nvim that registered a socket under `cache_dir/nvim-sockets`;
+/// stale sockets are removed on a failed connection.
 fn notify_nvim_instances(cache_dir: &Path) {
     let sock_dir = cache_dir.join("nvim-sockets");
     let entries = match fs::read_dir(&sock_dir) {
@@ -312,7 +301,8 @@ fn notify_nvim_instances(cache_dir: &Path) {
 
 /// Hyprland `general`/`decoration` colour block: active/inactive border from
 /// color4/color8, shadow from the background.
-fn hyprland_conf_string(colors: &Colors) -> String {
+/// (active, inactive) border hex (no `#`) from color4/color8, with fallbacks.
+fn hyprland_border_hex(colors: &Colors) -> (&str, &str) {
     let active = colors
         .ansi_colors
         .get(4)
@@ -323,33 +313,27 @@ fn hyprland_conf_string(colors: &Colors) -> String {
         .get(8)
         .map(String::as_str)
         .unwrap_or("#595959");
-    let active_hex = active.trim_start_matches('#');
-    let inactive_hex = inactive.trim_start_matches('#');
-    let bg_hex = colors.background.trim_start_matches('#');
+    (
+        active.trim_start_matches('#'),
+        inactive.trim_start_matches('#'),
+    )
+}
 
+fn hyprland_conf_string(colors: &Colors) -> String {
+    let (active_hex, inactive_hex) = hyprland_border_hex(colors);
+    let bg_hex = colors.background.trim_start_matches('#');
     format!(
         "general {{\n    col.active_border = rgba({active_hex}ee)\n    col.inactive_border = rgba({inactive_hex}aa)\n}}\ndecoration {{\n    shadow {{\n        color = rgba({bg_hex}ee)\n    }}\n}}\n"
     )
 }
 
 fn write_and_apply_hyprland(colors: &Colors, cache_dir: &Path) -> Result<()> {
-    let active = colors
-        .ansi_colors
-        .get(4)
-        .cloned()
-        .unwrap_or_else(|| "#89b4fa".into());
-    let inactive = colors
-        .ansi_colors
-        .get(8)
-        .cloned()
-        .unwrap_or_else(|| "#595959".into());
+    fs::write(
+        cache_dir.join("colors-hyprland.conf"),
+        hyprland_conf_string(colors),
+    )?;
 
-    let active_hex = active.trim_start_matches('#');
-    let inactive_hex = inactive.trim_start_matches('#');
-
-    let hypr_path = cache_dir.join("colors-hyprland.conf");
-    fs::write(&hypr_path, hyprland_conf_string(colors))?;
-
+    let (active_hex, inactive_hex) = hyprland_border_hex(colors);
     let commands = [
         ("general:col.active_border", format!("rgba({active_hex}ee)")),
         (

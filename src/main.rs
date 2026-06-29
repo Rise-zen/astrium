@@ -27,8 +27,6 @@ enum Cmd {
         no_wallpaper: bool,
     },
     /// Poll awww for wallpaper changes and re-theme automatically.
-    /// Replaces the standalone bash wallpaper-watch script with a single
-    /// native process that doesn't fork awww+sed+grep every tick.
     Watch {
         /// Poll interval in milliseconds.
         #[arg(long, default_value_t = 250)]
@@ -52,7 +50,6 @@ fn main() -> Result<()> {
     let home = std::env::var("HOME").unwrap_or_else(|_| "/".to_string());
     let cache_dir = PathBuf::from(&home).join(".cache/astrium");
 
-    // Resolve the legacy "just give me a path" form.
     let cmd = cli.command.unwrap_or_else(|| Cmd::Apply {
         image_path: cli.image_path.unwrap_or_else(|| PathBuf::from(".")),
         no_wallpaper: false,
@@ -64,18 +61,14 @@ fn main() -> Result<()> {
             no_wallpaper,
         } => {
             let path = resolve_path(&image_path, &home);
-            match astrium::apply_with(&path, &cfg, &cache_dir, !no_wallpaper) {
-                Ok(_) => println!("ok"),
-                Err(e) => eprintln!("[astrium] error: {e:?}"),
-            }
+            astrium::apply_with(&path, &cfg, &cache_dir, !no_wallpaper)?;
+            println!("ok");
         }
         Cmd::Watch { interval } => watch(&cfg, &cache_dir, interval)?,
         Cmd::Generate { image_path, out } => {
             let path = resolve_path(&image_path, &home);
-            match astrium::generate(&path, &out, &cfg) {
-                Ok(_) => println!("ok"),
-                Err(e) => eprintln!("[astrium] error: {e:?}"),
-            }
+            astrium::generate(&path, &out, &cfg)?;
+            println!("ok");
         }
     }
 
@@ -91,9 +84,7 @@ fn resolve_path(p: &Path, home: &str) -> PathBuf {
     }
 }
 
-/// Tight polling loop in native Rust. The previous bash version forked
-/// awww+grep+sed every interval and slept 250ms; we just call awww and parse
-/// in-process. Same external behaviour, lower CPU, no $PATH shell parsing.
+/// Poll awww in-process and re-theme when the displayed wallpaper changes.
 fn watch(cfg: &astrium::config::Config, cache_dir: &Path, interval_ms: u64) -> Result<()> {
     let mut last: Option<PathBuf> = None;
     let sleep = Duration::from_millis(interval_ms);
