@@ -1,5 +1,8 @@
 # astrium
 
+[![CI](https://github.com/Rise-zen/astrium/actions/workflows/ci.yml/badge.svg)](https://github.com/Rise-zen/astrium/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 > Wallpaper-driven Material You theming for Linux — extracts a vibrant accent
 > from any image, builds a coherent palette, and pushes a live reload to
 > every app that knows how to take one (kitty, Hyprland, Neovim, cava,
