@@ -14,6 +14,28 @@
         let
           cfg = config.services.astrium;
           astriumPkg = self.packages.${pkgs.system}.default;
+          isHome = config ? home;
+          tomlFormat = pkgs.formats.toml { };
+
+          # Map the typed Nix options onto astrium's config.toml schema. Only
+          # the snake_case keys the Rust side reads are emitted; templates carry
+          # their input through the nix store so the source is immutable and
+          # reproducible while astrium renders the output at runtime.
+          tomlConfig = {
+            theme = {
+              mode = cfg.theme.mode;
+              bg_darken = cfg.theme.bgDarken;
+              fg_mute = cfg.theme.fgMute;
+              ansi_mute = cfg.theme.ansiMute;
+            };
+            outputs = {
+              inherit (cfg.outputs) kitty hyprland nvim cava quickshell;
+            };
+            templates = map (t: {
+              input = toString t.input;
+              inherit (t) output;
+            }) cfg.templates;
+          };
         in {
           options.services.astrium = {
             enable = lib.mkEnableOption "astrium wallpaper-driven theming daemon";
@@ -38,12 +60,75 @@
               default = 250;
               description = "Poll interval in milliseconds for the watch daemon.";
             };
+
+            theme = {
+              mode = lib.mkOption {
+                type = lib.types.enum [ "dark" "light" ];
+                default = "dark";
+                description = "Which Material You scheme to derive.";
+              };
+              bgDarken = lib.mkOption {
+                type = lib.types.float;
+                default = 0.4;
+                description = "0..1 — extra darkening applied to the background.";
+              };
+              fgMute = lib.mkOption {
+                type = lib.types.float;
+                default = 0.7;
+                description = "0..1 — pull the foreground toward grey.";
+              };
+              ansiMute = lib.mkOption {
+                type = lib.types.float;
+                default = 0.55;
+                description = "0..1 — mute the 16 ansi roles.";
+              };
+            };
+
+            outputs = {
+              kitty = lib.mkOption { type = lib.types.bool; default = true; description = "Reload kitty colours."; };
+              hyprland = lib.mkOption { type = lib.types.bool; default = true; description = "Reload Hyprland border/shadow colours."; };
+              nvim = lib.mkOption { type = lib.types.bool; default = true; description = "Write Neovim theme + notify running instances."; };
+              cava = lib.mkOption { type = lib.types.bool; default = true; description = "Patch cava gradient."; };
+              quickshell = lib.mkOption { type = lib.types.bool; default = true; description = "Write /tmp/qs_colors.json for quickshell bars."; };
+            };
+
+            templates = lib.mkOption {
+              default = [ ];
+              description = ''
+                User templates rendered on every retheme. `input` is a file
+                containing `{{placeholder}}`s (carried through the nix store);
+                `output` is where the rendered result is written.
+              '';
+              example = lib.literalExpression ''
+                [ { input = ./waybar/colors.css.in; output = "~/.config/waybar/colors.css"; } ]
+              '';
+              type = lib.types.listOf (lib.types.submodule {
+                options = {
+                  input = lib.mkOption {
+                    type = lib.types.path;
+                    description = "Template source file with {{var}} placeholders.";
+                  };
+                  output = lib.mkOption {
+                    type = lib.types.str;
+                    description = "Destination path for the rendered file (supports a leading ~).";
+                  };
+                };
+              });
+            };
           };
 
           config = lib.mkIf cfg.enable {
             # Bundle the binary into the user's environment so `astrium X.jpg`
             # works in any shell.
-            home.packages = lib.optional (config ? home) cfg.package;
+            home.packages = lib.optional isHome cfg.package;
+
+            # Generate ~/.config/astrium/config.toml from the typed options so
+            # the whole theme is declared in Nix. Home-manager only — NixOS has
+            # no per-user xdg.configFile surface.
+            xdg.configFile = lib.mkIf isHome {
+              "astrium/config.toml".source =
+                tomlFormat.generate "astrium-config.toml" tomlConfig;
+            };
 
             # systemd user service — only registered if the user actually
             # wants the watcher running, otherwise astrium stays one-shot CLI.

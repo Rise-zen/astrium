@@ -70,12 +70,32 @@ home-manager / NixOS module:
     enable   = true;
     watch    = true;     # registers a systemd user service for the watcher
     interval = 200;      # poll milliseconds
+
+    # The whole theme is declared here — the module generates
+    # ~/.config/astrium/config.toml, so you never hand-write it.
+    theme = {
+      mode     = "dark";
+      bgDarken = 0.4;
+      fgMute   = 0.7;
+      ansiMute = 0.55;
+    };
+    outputs.cava = false;   # disable any built-in output
+
+    # Declarative templates: the input lives in the nix store (immutable,
+    # reproducible), astrium renders the output at runtime on every retheme.
+    templates = [
+      { input = ./waybar/colors.css.in; output = "~/.config/waybar/colors.css"; }
+      { input = ./rofi/theme.rasi.in;   output = "~/.config/rofi/theme.rasi"; }
+    ];
   };
 }
 ```
 
 The module wires `astrium watch` into `graphical-session.target`, so it
 starts when your compositor is up and restarts automatically on failure.
+`theme`, `outputs` and `templates` are compiled straight into
+`config.toml` via `pkgs.formats.toml`, so the entire palette pipeline is
+reproducible and lives next to the rest of your Home Manager config.
 
 ### Arch / manual (full guide)
 
