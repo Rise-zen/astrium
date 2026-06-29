@@ -1,0 +1,22 @@
+# Example astrium config. Copy to ~/.config/astrium/config.toml and edit.
+# Every field is optional; the defaults below are what astrium uses.
+
+[theme]
+mode      = "dark"   # "dark" | "light"
+bg_darken = 0.4      # 0..1 — extra darken on the background
+fg_mute   = 0.7      # 0..1 — pull foreground toward grey
+ansi_mute = 0.55     # 0..1 — mute the 16 ansi roles
+
+[outputs]
+kitty      = true
+hyprland   = true
+nvim       = true
+cava       = true
+quickshell = true
+
+# Theme any app: render a template with {{var}} placeholders on every retheme.
+# Available: {{background}} {{foreground}} {{cursor}} {{color0..15}}
+# and {{NAME.strip}} for the hash-less hex (e.g. {{color4.strip}}).
+# [[templates]]
+# input  = "~/.config/waybar/colors.css.in"
+# output = "~/.config/waybar/colors.css"
