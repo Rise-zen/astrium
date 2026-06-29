@@ -176,9 +176,22 @@
             mainProgram = "astrium";
           };
         };
+
+        # Build-time palette: run `astrium generate` inside a sandbox to bake
+        # the color files for a fixed wallpaper into a derivation. No daemon,
+        # no awww — the theme is computed once at build and lives in the store.
+        #   astrium.lib.${system}.mkPalette ./wallpaper.jpg
+        # produces a store path containing colors.json, colors-kitty.conf,
+        # colors-hyprland.conf, nvim-theme.lua, qs_colors.json, cava-gradient.conf.
+        mkPalette = wallpaper:
+          pkgs.runCommand "astrium-palette" { } ''
+            ${astrium}/bin/astrium generate ${wallpaper} --out $out
+          '';
       in {
         packages.default = astrium;
         packages.astrium = astrium;
+
+        lib.mkPalette = mkPalette;
 
         # `nix run github:Rise-zen/astrium -- apply ~/Wallpaper/sunset.jpg`
         # `nix run github:Rise-zen/astrium#watch`

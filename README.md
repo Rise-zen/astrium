@@ -276,16 +276,40 @@ wallpaper changes — no reload needed.
 Usage: astrium [COMMAND]
 
 Commands:
-  apply  Apply a wallpaper one-shot: set it via awww + write all palette files
-  watch  Poll awww for wallpaper changes and re-theme automatically
+  apply     Apply a wallpaper one-shot: set it via awww + write all palette files
+  watch     Poll awww for wallpaper changes and re-theme automatically
+  generate  Extract a palette and write artifacts to a dir with no side effects
 ```
 
 `astrium <path>` (no subcommand) is kept as a legacy alias for
 `astrium apply <path>`.
 
-Watch flags:
+Flags:
 
-- `--interval <ms>` — poll cadence, default `250`.
+- `apply --no-wallpaper` — only regenerate the palette; don't touch the wallpaper.
+- `watch --interval <ms>` — poll cadence, default `250`.
+- `generate <image> --out <dir>` — pure, sandbox-safe; no awww/kitty/hyprctl,
+  no `/tmp`, no config patching. Writes every artifact into `<dir>`.
+
+---
+
+## Build-time palettes (Nix)
+
+`generate` is what lets Nix bake a palette at build time — no running daemon,
+no wallpaper switch, the theme is computed once and lives in the store:
+
+```nix
+let
+  palette = astrium.lib.${system}.mkPalette ./wallpaper.jpg;
+in {
+  # palette is a store path containing colors.json, colors-kitty.conf,
+  # colors-hyprland.conf, nvim-theme.lua, qs_colors.json, cava-gradient.conf
+  programs.kitty.extraConfig = builtins.readFile "${palette}/colors-kitty.conf";
+}
+```
+
+Because it runs in the Nix sandbox (no network, no external programs), the
+result is fully reproducible: the same wallpaper always yields the same files.
 
 ---
 

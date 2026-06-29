@@ -88,6 +88,21 @@ fn render_user_templates(colors: &theme::Colors, cfg: &config::Config) {
     }
 }
 
+/// Extract a palette from `image_path` and write every artifact into `out_dir`
+/// as plain files, with zero side effects — no awww/kitty/hyprctl, no /tmp, no
+/// touching the user's config. Pure and sandbox-safe, which is what lets Nix
+/// bake a palette into a derivation at build time (see `astriumPalette`).
+pub fn generate(image_path: &Path, out_dir: &Path, cfg: &config::Config) -> Result<()> {
+    let source = color::extract_source_color(image_path)?;
+    let colors = theme::build_colors(source, cfg);
+    broadcast::write_static(&colors, out_dir)?;
+
+    // User templates render fine in a sandbox too — output paths just point
+    // inside out_dir when used from the Nix derivation.
+    render_user_templates(&colors, cfg);
+    Ok(())
+}
+
 /// Re-theme using whatever wallpaper awww is currently displaying.
 /// Returns the path so the watch loop can de-dupe consecutive identical calls.
 pub fn current_wallpaper() -> Option<PathBuf> {

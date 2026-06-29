@@ -34,6 +34,16 @@ enum Cmd {
         #[arg(long, default_value_t = 250)]
         interval: u64,
     },
+    /// Extract a palette and write the artifacts into a directory with no side
+    /// effects (no wallpaper, no live reloads). Sandbox-safe; used to bake a
+    /// palette at Nix build time.
+    Generate {
+        #[arg(value_name = "IMAGE_PATH")]
+        image_path: PathBuf,
+        /// Directory to write the palette files into (created if missing).
+        #[arg(long, value_name = "DIR")]
+        out: PathBuf,
+    },
 }
 
 fn main() -> Result<()> {
@@ -60,6 +70,13 @@ fn main() -> Result<()> {
             }
         }
         Cmd::Watch { interval } => watch(&cfg, &cache_dir, interval)?,
+        Cmd::Generate { image_path, out } => {
+            let path = resolve_path(&image_path, &home);
+            match astrium::generate(&path, &out, &cfg) {
+                Ok(_) => println!("ok"),
+                Err(e) => eprintln!("[astrium] error: {e:?}"),
+            }
+        }
     }
 
     Ok(())

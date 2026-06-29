@@ -2,8 +2,8 @@ use crate::theme::Colors;
 use anyhow::Result;
 use serde::Serialize;
 use std::collections::HashMap;
-use std::fs::{self, File};
-use std::io::Write;
+use std::fmt::Write;
+use std::fs;
 use std::path::Path;
 use std::process::Command;
 
@@ -26,30 +26,11 @@ pub fn save_and_broadcast(
     fs::create_dir_all(cache_dir)?;
 
     // JSON
-    let mut special = HashMap::new();
-    special.insert("background".into(), colors.background.clone());
-    special.insert("foreground".into(), colors.foreground.clone());
-    let colors_map: HashMap<String, String> = colors
-        .ansi_colors
-        .iter()
-        .enumerate()
-        .map(|(i, c)| (format!("color{}", i), c.clone()))
-        .collect();
-    let json = serde_json::to_string_pretty(&ColorsJson {
-        alpha: colors.alpha.clone(),
-        special,
-        colors: colors_map,
-    })?;
-    File::create(cache_dir.join("colors.json"))?.write_all(json.as_bytes())?;
+    fs::write(cache_dir.join("colors.json"), colors_json_string(colors)?)?;
 
     // Kitty
     let kitty_path = cache_dir.join("colors-kitty.conf");
-    let mut f = File::create(&kitty_path)?;
-    writeln!(f, "background {}", colors.background)?;
-    writeln!(f, "foreground {}", colors.foreground)?;
-    for (i, c) in colors.ansi_colors.iter().enumerate() {
-        writeln!(f, "color{} {}", i, c)?;
-    }
+    fs::write(&kitty_path, kitty_conf_string(colors))?;
 
     if kitty {
         if let Err(e) = Command::new("kitty")
@@ -75,16 +56,62 @@ pub fn save_and_broadcast(
     }
 
     if quickshell {
-        write_quickshell(colors)?;
+        fs::write("/tmp/qs_colors.json", quickshell_json_string(colors)?)?;
     }
 
     Ok(())
 }
 
-/// Writes /tmp/qs_colors.json in the Catppuccin-named palette format that
-/// ilyamiro's quickshell config (MatugenColors.qml) polls once per second.
-/// No signal needed — quickshell picks up the change on its own timer.
-fn write_quickshell(colors: &Colors) -> Result<()> {
+/// Write every palette artifact into `dir` as plain files, with no live-reload
+/// side effects (no awww/kitty/hyprctl/nvim/pkill, no /tmp, no patching the
+/// user's cava config). This is what the Nix build-time `astrium generate`
+/// path uses to bake a palette into a derivation without a running daemon.
+pub fn write_static(colors: &Colors, dir: &Path) -> Result<()> {
+    fs::create_dir_all(dir)?;
+    fs::write(dir.join("colors.json"), colors_json_string(colors)?)?;
+    fs::write(dir.join("colors-kitty.conf"), kitty_conf_string(colors))?;
+    fs::write(
+        dir.join("colors-hyprland.conf"),
+        hyprland_conf_string(colors),
+    )?;
+    fs::write(dir.join("nvim-theme.lua"), nvim_theme_string(colors)?)?;
+    fs::write(dir.join("qs_colors.json"), quickshell_json_string(colors)?)?;
+    fs::write(dir.join("cava-gradient.conf"), cava_block_string(colors))?;
+    Ok(())
+}
+
+/// wal-style `colors.json`: background, foreground, color0..15.
+fn colors_json_string(colors: &Colors) -> Result<String> {
+    let mut special = HashMap::new();
+    special.insert("background".into(), colors.background.clone());
+    special.insert("foreground".into(), colors.foreground.clone());
+    let colors_map: HashMap<String, String> = colors
+        .ansi_colors
+        .iter()
+        .enumerate()
+        .map(|(i, c)| (format!("color{}", i), c.clone()))
+        .collect();
+    Ok(serde_json::to_string_pretty(&ColorsJson {
+        alpha: colors.alpha.clone(),
+        special,
+        colors: colors_map,
+    })?)
+}
+
+/// kitty `background/foreground/color0..15` conf block.
+fn kitty_conf_string(colors: &Colors) -> String {
+    let mut s = String::new();
+    s.push_str(&format!("background {}\n", colors.background));
+    s.push_str(&format!("foreground {}\n", colors.foreground));
+    for (i, c) in colors.ansi_colors.iter().enumerate() {
+        s.push_str(&format!("color{} {}\n", i, c));
+    }
+    s
+}
+
+/// Builds the Catppuccin-named palette JSON that quickshell configs read
+/// (AstriumColors.qml watches the file and repaints on change).
+fn quickshell_json_string(colors: &Colors) -> Result<String> {
     let bg = parse_hex(&colors.background);
     let fg = parse_hex(&colors.foreground);
     let ansi: Vec<(u8, u8, u8)> = colors.ansi_colors.iter().map(|h| parse_hex(h)).collect();
@@ -123,9 +150,7 @@ fn write_quickshell(colors: &Colors) -> Result<()> {
     m.insert("maroon", hex(vivid(g(9))));
     m.insert("sapphire", hex(vivid(g(14))));
 
-    let json = serde_json::to_string_pretty(&m)?;
-    fs::write("/tmp/qs_colors.json", json)?;
-    Ok(())
+    Ok(serde_json::to_string_pretty(&m)?)
 }
 
 /// Pushes a washed-out accent toward a punchy, bar-friendly color: floor the
@@ -199,9 +224,18 @@ fn update_cava_config(colors: &Colors) -> Result<()> {
         let _ = fs::create_dir_all(p);
     }
 
-    // All vibrant ANSI slots — colors 1..7 and 9..15 — skipping color0/8
-    // (background and grey) which would muddy the gradient. Gives cava 14
-    // smoothly interpolated stops covering the full palette.
+    let block = cava_block_string(colors);
+    let existing = fs::read_to_string(&cfg_path).unwrap_or_default();
+    let new = replace_block(&existing, &block);
+    fs::write(&cfg_path, new)?;
+    Ok(())
+}
+
+/// The cava `[color]` gradient block, framed by the `# >>> astrium` /
+/// `# <<< astrium` markers. All vibrant ANSI slots (1..7, 9..15) become
+/// gradient stops; color0/8 (background and grey) are skipped so the gradient
+/// stays saturated.
+fn cava_block_string(colors: &Colors) -> String {
     let mut stops: Vec<&str> = Vec::new();
     for i in [1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15] {
         if let Some(c) = colors.ansi_colors.get(i) {
@@ -217,11 +251,7 @@ fn update_cava_config(colors: &Colors) -> Result<()> {
         block.push_str(&format!("gradient_color_{} = '{}'\n", i + 1, hex));
     }
     block.push_str("# <<< astrium\n");
-
-    let existing = fs::read_to_string(&cfg_path).unwrap_or_default();
-    let new = replace_block(&existing, &block);
-    fs::write(&cfg_path, new)?;
-    Ok(())
+    block
 }
 
 fn replace_block(existing: &str, block: &str) -> String {
@@ -280,6 +310,28 @@ fn notify_nvim_instances(cache_dir: &Path) {
     }
 }
 
+/// Hyprland `general`/`decoration` colour block: active/inactive border from
+/// color4/color8, shadow from the background.
+fn hyprland_conf_string(colors: &Colors) -> String {
+    let active = colors
+        .ansi_colors
+        .get(4)
+        .map(String::as_str)
+        .unwrap_or("#89b4fa");
+    let inactive = colors
+        .ansi_colors
+        .get(8)
+        .map(String::as_str)
+        .unwrap_or("#595959");
+    let active_hex = active.trim_start_matches('#');
+    let inactive_hex = inactive.trim_start_matches('#');
+    let bg_hex = colors.background.trim_start_matches('#');
+
+    format!(
+        "general {{\n    col.active_border = rgba({active_hex}ee)\n    col.inactive_border = rgba({inactive_hex}aa)\n}}\ndecoration {{\n    shadow {{\n        color = rgba({bg_hex}ee)\n    }}\n}}\n"
+    )
+}
+
 fn write_and_apply_hyprland(colors: &Colors, cache_dir: &Path) -> Result<()> {
     let active = colors
         .ansi_colors
@@ -294,19 +346,9 @@ fn write_and_apply_hyprland(colors: &Colors, cache_dir: &Path) -> Result<()> {
 
     let active_hex = active.trim_start_matches('#');
     let inactive_hex = inactive.trim_start_matches('#');
-    let bg_hex = colors.background.trim_start_matches('#');
 
     let hypr_path = cache_dir.join("colors-hyprland.conf");
-    let mut f = File::create(&hypr_path)?;
-    writeln!(f, "general {{")?;
-    writeln!(f, "    col.active_border = rgba({active_hex}ee)")?;
-    writeln!(f, "    col.inactive_border = rgba({inactive_hex}aa)")?;
-    writeln!(f, "}}")?;
-    writeln!(f, "decoration {{")?;
-    writeln!(f, "    shadow {{")?;
-    writeln!(f, "        color = rgba({bg_hex}ee)")?;
-    writeln!(f, "    }}")?;
-    writeln!(f, "}}")?;
+    fs::write(&hypr_path, hyprland_conf_string(colors))?;
 
     let commands = [
         ("general:col.active_border", format!("rgba({active_hex}ee)")),
@@ -329,8 +371,12 @@ fn write_and_apply_hyprland(colors: &Colors, cache_dir: &Path) -> Result<()> {
 }
 
 fn write_nvim_theme(colors: &Colors, cache_dir: &Path) -> Result<()> {
-    let path = cache_dir.join("nvim-theme.lua");
-    let mut f = File::create(&path)?;
+    fs::write(cache_dir.join("nvim-theme.lua"), nvim_theme_string(colors)?)?;
+    Ok(())
+}
+
+fn nvim_theme_string(colors: &Colors) -> Result<String> {
+    let mut f = String::new();
 
     let bg = &colors.background;
     let fg = &colors.foreground;
@@ -436,5 +482,5 @@ fn write_nvim_theme(colors: &Colors, cache_dir: &Path) -> Result<()> {
     writeln!(f)?;
     writeln!(f, "return M")?;
 
-    Ok(())
+    Ok(f)
 }
