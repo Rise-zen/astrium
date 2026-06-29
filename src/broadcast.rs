@@ -29,11 +29,16 @@ pub fn save_and_broadcast(
     let mut special = HashMap::new();
     special.insert("background".into(), colors.background.clone());
     special.insert("foreground".into(), colors.foreground.clone());
-    let colors_map: HashMap<String, String> = colors.ansi_colors.iter().enumerate()
+    let colors_map: HashMap<String, String> = colors
+        .ansi_colors
+        .iter()
+        .enumerate()
         .map(|(i, c)| (format!("color{}", i), c.clone()))
         .collect();
     let json = serde_json::to_string_pretty(&ColorsJson {
-        alpha: colors.alpha.clone(), special, colors: colors_map,
+        alpha: colors.alpha.clone(),
+        special,
+        colors: colors_map,
     })?;
     File::create(cache_dir.join("colors.json"))?.write_all(json.as_bytes())?;
 
@@ -232,7 +237,9 @@ fn replace_block(existing: &str, block: &str) -> String {
     }
 
     let mut out = existing.to_string();
-    if !out.ends_with('\n') && !out.is_empty() { out.push('\n'); }
+    if !out.ends_with('\n') && !out.is_empty() {
+        out.push('\n');
+    }
     out.push('\n');
     out.push_str(block);
     out
@@ -257,7 +264,12 @@ fn notify_nvim_instances(cache_dir: &Path) {
     for entry in entries.flatten() {
         let sock = entry.path();
         let ok = Command::new("nvim")
-            .args(["--server", &sock.to_string_lossy(), "--remote-expr", "v:lua.AstriumReload()"])
+            .args([
+                "--server",
+                &sock.to_string_lossy(),
+                "--remote-expr",
+                "v:lua.AstriumReload()",
+            ])
             .output()
             .map(|out| out.status.success())
             .unwrap_or(false);
@@ -269,8 +281,16 @@ fn notify_nvim_instances(cache_dir: &Path) {
 }
 
 fn write_and_apply_hyprland(colors: &Colors, cache_dir: &Path) -> Result<()> {
-    let active = colors.ansi_colors.get(4).cloned().unwrap_or_else(|| "#89b4fa".into());
-    let inactive = colors.ansi_colors.get(8).cloned().unwrap_or_else(|| "#595959".into());
+    let active = colors
+        .ansi_colors
+        .get(4)
+        .cloned()
+        .unwrap_or_else(|| "#89b4fa".into());
+    let inactive = colors
+        .ansi_colors
+        .get(8)
+        .cloned()
+        .unwrap_or_else(|| "#595959".into());
 
     let active_hex = active.trim_start_matches('#');
     let inactive_hex = inactive.trim_start_matches('#');
@@ -290,7 +310,10 @@ fn write_and_apply_hyprland(colors: &Colors, cache_dir: &Path) -> Result<()> {
 
     let commands = [
         ("general:col.active_border", format!("rgba({active_hex}ee)")),
-        ("general:col.inactive_border", format!("rgba({inactive_hex}aa)")),
+        (
+            "general:col.inactive_border",
+            format!("rgba({inactive_hex}aa)"),
+        ),
     ];
 
     for (key, value) in commands {
@@ -325,31 +348,89 @@ fn write_nvim_theme(colors: &Colors, cache_dir: &Path) -> Result<()> {
     writeln!(f, "  local hl = vim.api.nvim_set_hl")?;
     writeln!(f, "  hl(0, 'Normal', {{ fg = '{fg}', bg = '{bg}' }})")?;
     writeln!(f, "  hl(0, 'NormalFloat', {{ fg = '{fg}', bg = '{bg}' }})")?;
-    writeln!(f, "  hl(0, 'CursorLine', {{ bg = '{}' }})", get(8, "#444444"))?;
+    writeln!(
+        f,
+        "  hl(0, 'CursorLine', {{ bg = '{}' }})",
+        get(8, "#444444")
+    )?;
     writeln!(f, "  hl(0, 'LineNr', {{ fg = '{}' }})", get(8, "#666666"))?;
-    writeln!(f, "  hl(0, 'Comment', {{ fg = '{}', italic = true }})", get(8, "#888888"))?;
+    writeln!(
+        f,
+        "  hl(0, 'Comment', {{ fg = '{}', italic = true }})",
+        get(8, "#888888")
+    )?;
     writeln!(f, "  hl(0, 'String', {{ fg = '{}' }})", get(2, "#a6e3a1"))?;
     writeln!(f, "  hl(0, 'Function', {{ fg = '{}' }})", get(4, "#89b4fa"))?;
     writeln!(f, "  hl(0, 'Keyword', {{ fg = '{}' }})", get(5, "#cba6f7"))?;
     writeln!(f, "  hl(0, 'Type', {{ fg = '{}' }})", get(3, "#f9e2af"))?;
-    writeln!(f, "  hl(0, 'Identifier', {{ fg = '{}' }})", get(6, "#94e2d5"))?;
+    writeln!(
+        f,
+        "  hl(0, 'Identifier', {{ fg = '{}' }})",
+        get(6, "#94e2d5")
+    )?;
     writeln!(f, "  hl(0, 'Constant', {{ fg = '{}' }})", get(1, "#f38ba8"))?;
-    writeln!(f, "  hl(0, 'Statement', {{ fg = '{}' }})", get(5, "#cba6f7"))?;
+    writeln!(
+        f,
+        "  hl(0, 'Statement', {{ fg = '{}' }})",
+        get(5, "#cba6f7")
+    )?;
     writeln!(f, "  hl(0, 'Visual', {{ bg = '{}' }})", get(8, "#45475a"))?;
-    writeln!(f, "  hl(0, 'Search', {{ bg = '{}', fg = '{bg}' }})", get(3, "#f9e2af"))?;
-    writeln!(f, "  hl(0, 'Pmenu', {{ fg = '{fg}', bg = '{}' }})", get(8, "#313244"))?;
-    writeln!(f, "  hl(0, 'PmenuSel', {{ fg = '{bg}', bg = '{}' }})", get(4, "#89b4fa"))?;
+    writeln!(
+        f,
+        "  hl(0, 'Search', {{ bg = '{}', fg = '{bg}' }})",
+        get(3, "#f9e2af")
+    )?;
+    writeln!(
+        f,
+        "  hl(0, 'Pmenu', {{ fg = '{fg}', bg = '{}' }})",
+        get(8, "#313244")
+    )?;
+    writeln!(
+        f,
+        "  hl(0, 'PmenuSel', {{ fg = '{bg}', bg = '{}' }})",
+        get(4, "#89b4fa")
+    )?;
 
     // Neo-tree
-    writeln!(f, "  hl(0, 'NeoTreeDirectoryIcon', {{ fg = '{}' }})", get(4, "#89b4fa"))?;
-    writeln!(f, "  hl(0, 'NeoTreeDirectoryName', {{ fg = '{}' }})", get(4, "#89b4fa"))?;
+    writeln!(
+        f,
+        "  hl(0, 'NeoTreeDirectoryIcon', {{ fg = '{}' }})",
+        get(4, "#89b4fa")
+    )?;
+    writeln!(
+        f,
+        "  hl(0, 'NeoTreeDirectoryName', {{ fg = '{}' }})",
+        get(4, "#89b4fa")
+    )?;
     writeln!(f, "  hl(0, 'NeoTreeFileName', {{ fg = '{fg}' }})")?;
-    writeln!(f, "  hl(0, 'NeoTreeRootName', {{ fg = '{}', bold = true }})", get(5, "#cba6f7"))?;
-    writeln!(f, "  hl(0, 'NeoTreeNormal', {{ fg = '{fg}', bg = 'none' }})")?;
-    writeln!(f, "  hl(0, 'NeoTreeNormalNC', {{ fg = '{fg}', bg = 'none' }})")?;
-    writeln!(f, "  hl(0, 'NeoTreeIndentMarker', {{ fg = '{}' }})", get(8, "#444444"))?;
-    writeln!(f, "  hl(0, 'NeoTreeGitModified', {{ fg = '{}' }})", get(3, "#f9e2af"))?;
-    writeln!(f, "  hl(0, 'NeoTreeGitAdded', {{ fg = '{}' }})", get(2, "#a6e3a1"))?;
+    writeln!(
+        f,
+        "  hl(0, 'NeoTreeRootName', {{ fg = '{}', bold = true }})",
+        get(5, "#cba6f7")
+    )?;
+    writeln!(
+        f,
+        "  hl(0, 'NeoTreeNormal', {{ fg = '{fg}', bg = 'none' }})"
+    )?;
+    writeln!(
+        f,
+        "  hl(0, 'NeoTreeNormalNC', {{ fg = '{fg}', bg = 'none' }})"
+    )?;
+    writeln!(
+        f,
+        "  hl(0, 'NeoTreeIndentMarker', {{ fg = '{}' }})",
+        get(8, "#444444")
+    )?;
+    writeln!(
+        f,
+        "  hl(0, 'NeoTreeGitModified', {{ fg = '{}' }})",
+        get(3, "#f9e2af")
+    )?;
+    writeln!(
+        f,
+        "  hl(0, 'NeoTreeGitAdded', {{ fg = '{}' }})",
+        get(2, "#a6e3a1")
+    )?;
 
     writeln!(f, "end")?;
     writeln!(f)?;
@@ -357,41 +438,3 @@ fn write_nvim_theme(colors: &Colors, cache_dir: &Path) -> Result<()> {
 
     Ok(())
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

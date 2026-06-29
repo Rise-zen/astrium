@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::Duration;
 
@@ -49,7 +49,10 @@ fn main() -> Result<()> {
     });
 
     match cmd {
-        Cmd::Apply { image_path, no_wallpaper } => {
+        Cmd::Apply {
+            image_path,
+            no_wallpaper,
+        } => {
             let path = resolve_path(&image_path, &home);
             match astrium::apply_with(&path, &cfg, &cache_dir, !no_wallpaper) {
                 Ok(_) => println!("ok"),
@@ -63,9 +66,9 @@ fn main() -> Result<()> {
 }
 
 /// If the user passed a bare filename, fall back to `~/Wallpaper/<name>`.
-fn resolve_path(p: &PathBuf, home: &str) -> PathBuf {
+fn resolve_path(p: &Path, home: &str) -> PathBuf {
     if p.exists() {
-        p.clone()
+        p.to_path_buf()
     } else {
         PathBuf::from(format!("{home}/Wallpaper/{}", p.to_string_lossy()))
     }
@@ -74,7 +77,7 @@ fn resolve_path(p: &PathBuf, home: &str) -> PathBuf {
 /// Tight polling loop in native Rust. The previous bash version forked
 /// awww+grep+sed every interval and slept 250ms; we just call awww and parse
 /// in-process. Same external behaviour, lower CPU, no $PATH shell parsing.
-fn watch(cfg: &astrium::config::Config, cache_dir: &PathBuf, interval_ms: u64) -> Result<()> {
+fn watch(cfg: &astrium::config::Config, cache_dir: &Path, interval_ms: u64) -> Result<()> {
     let mut last: Option<PathBuf> = None;
     let sleep = Duration::from_millis(interval_ms);
     loop {

@@ -164,6 +164,42 @@ quickshell = true
 
 All defaults are sensible; the file is optional.
 
+### Templates — theme any app
+
+The built-in outputs cover the author's setup. To theme anything else, point
+astrium at a template file with `{{placeholder}}`s and an output path. Every
+template is re-rendered on each wallpaper change:
+
+```toml
+[[templates]]
+input  = "~/.config/waybar/colors.css.in"
+output = "~/.config/waybar/colors.css"
+
+[[templates]]
+input  = "~/.config/rofi/theme.rasi.in"
+output = "~/.config/rofi/theme.rasi"
+```
+
+Inside a template, reference any palette variable:
+
+| Placeholder | Value |
+|---|---|
+| `{{background}}` / `{{foreground}}` | base colours (`#rrggbb`) |
+| `{{color0}}` … `{{color15}}` | the 16 ansi roles |
+| `{{cursor}}` | alias of `{{foreground}}` |
+| `{{NAME.strip}}` | same colour without the leading `#` (e.g. `{{color4.strip}}` → `89b4fa`, handy for `rgba()`) |
+
+Example `colors.css.in`:
+
+```css
+@define-color bg {{background}};
+@define-color accent {{color4}};
+.border { border: 1px solid #{{color5.strip}}; }
+```
+
+Unknown placeholders are left untouched, so a typo is visible in the output
+rather than silently blanked.
+
 ---
 
 ## Neovim hookup
@@ -267,6 +303,12 @@ astrium = { git = "https://github.com/Rise-zen/astrium" }
 
 ## Changelog
 
+- **Templates** — `[[templates]]` in the config renders any file with
+  `{{placeholder}}`s on every retheme, so astrium can colour apps beyond the
+  built-in outputs.
+- `astrium apply --no-wallpaper` regenerates the palette without touching the
+  wallpaper, for callers that already set the image (sub-second retheme).
+- CI: GitHub Actions runs `cargo fmt`/`clippy`/`test` and `nix flake check`.
 - Full install guide with step-by-step instructions and dependency table.
 - Added Hyprland hookup section.
 - Repository URLs moved to `github.com/Rise-zen/astrium`.

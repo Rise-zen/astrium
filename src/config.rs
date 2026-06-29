@@ -2,12 +2,24 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Config {
     #[serde(default)]
     pub theme: ThemeConfig,
     #[serde(default)]
     pub outputs: OutputConfig,
+    /// User-defined templates rendered on every retheme. Each entry reads
+    /// `input`, substitutes `{{var}}` placeholders, and writes `output`.
+    #[serde(default)]
+    pub templates: Vec<TemplateConfig>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TemplateConfig {
+    /// Path to the template file (supports a leading `~`).
+    pub input: String,
+    /// Where to write the rendered result (supports a leading `~`).
+    pub output: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -36,11 +48,21 @@ pub struct OutputConfig {
     pub quickshell: bool,
 }
 
-fn default_mode() -> String { "dark".to_string() }
-fn default_bg_darken() -> f32 { 0.4 }
-fn default_fg_mute() -> f32 { 0.7 }
-fn default_ansi_mute() -> f32 { 0.55 }
-fn default_true() -> bool { true }
+fn default_mode() -> String {
+    "dark".to_string()
+}
+fn default_bg_darken() -> f32 {
+    0.4
+}
+fn default_fg_mute() -> f32 {
+    0.7
+}
+fn default_ansi_mute() -> f32 {
+    0.55
+}
+fn default_true() -> bool {
+    true
+}
 
 impl Default for ThemeConfig {
     fn default() -> Self {
@@ -55,13 +77,13 @@ impl Default for ThemeConfig {
 
 impl Default for OutputConfig {
     fn default() -> Self {
-        Self { kitty: true, hyprland: true, nvim: true, cava: true, quickshell: true }
-    }
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self { theme: ThemeConfig::default(), outputs: OutputConfig::default() }
+        Self {
+            kitty: true,
+            hyprland: true,
+            nvim: true,
+            cava: true,
+            quickshell: true,
+        }
     }
 }
 

@@ -22,18 +22,34 @@ pub fn build_colors(source: Argb, config: &Config) -> Colors {
     let fg = mute(s.on_surface, config.theme.fg_mute);
 
     let roles = [
-        s.surface, s.primary_container, s.primary, s.secondary,
-        s.tertiary, s.on_primary, s.secondary_container,
-        s.on_surface_variant, s.outline, s.inverse_primary,
-        s.outline_variant, s.tertiary_container, s.on_primary_container,
-        s.on_secondary_container, s.on_tertiary_container, s.on_surface,
+        s.surface,
+        s.primary_container,
+        s.primary,
+        s.secondary,
+        s.tertiary,
+        s.on_primary,
+        s.secondary_container,
+        s.on_surface_variant,
+        s.outline,
+        s.inverse_primary,
+        s.outline_variant,
+        s.tertiary_container,
+        s.on_primary_container,
+        s.on_secondary_container,
+        s.on_tertiary_container,
+        s.on_surface,
     ];
 
     let f = config.theme.ansi_mute;
-    let ansi_colors = roles.iter().enumerate()
+    let ansi_colors = roles
+        .iter()
+        .enumerate()
         .map(|(i, &role)| {
-            if i == 0 { darken(role, config.theme.bg_darken) }
-            else { mute(role, f) }
+            if i == 0 {
+                darken(role, config.theme.bg_darken)
+            } else {
+                mute(role, f)
+            }
         })
         .collect();
 

@@ -8,6 +8,7 @@
 pub mod broadcast;
 pub mod color;
 pub mod config;
+pub mod template;
 pub mod theme;
 
 use anyhow::Result;
@@ -55,7 +56,36 @@ pub fn apply_with(
         cfg.outputs.nvim,
         cfg.outputs.cava,
         cfg.outputs.quickshell,
-    )
+    )?;
+
+    render_user_templates(&colors, cfg);
+    Ok(())
+}
+
+/// Render each `[[templates]]` entry from the config. Failures are logged but
+/// never abort the run — one broken user template shouldn't stop the rest of
+/// the desktop from rethemeing.
+fn render_user_templates(colors: &theme::Colors, cfg: &config::Config) {
+    if cfg.templates.is_empty() {
+        return;
+    }
+    let vars = template::build_vars(colors);
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/".to_string());
+    let expand = |p: &str| -> PathBuf {
+        if let Some(rest) = p.strip_prefix("~/") {
+            PathBuf::from(format!("{home}/{rest}"))
+        } else {
+            PathBuf::from(p)
+        }
+    };
+
+    for t in &cfg.templates {
+        let input = expand(&t.input);
+        let output = expand(&t.output);
+        if let Err(e) = template::render(&input, &output, &vars) {
+            eprintln!("[astrium] template {} -> {}: {e:?}", t.input, t.output);
+        }
+    }
 }
 
 /// Re-theme using whatever wallpaper awww is currently displaying.
